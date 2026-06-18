@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * USE CASE 1 + 2 + 4 — Room Inventory.
+ * USE CASE 1 + 2 + 4 + 6 — Room Inventory.
  */
 public class RoomInventory {
 
@@ -49,6 +49,12 @@ public class RoomInventory {
         if (current <= 0) return false;
         roomCounts.put(type, current - 1);
         return true;
+    }
+
+    /** Restore one room to availability when a booking is cancelled (UC6). */
+    public synchronized void incrementCount(String type) {
+        requireType(type);
+        roomCounts.put(type, getAvailableCount(type) + 1);
     }
 
     public int getAvailableCount(String type) {

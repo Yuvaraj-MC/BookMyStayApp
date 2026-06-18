@@ -8,14 +8,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * USE CASE 4 — Reservation Confirmation & Room Allocation.
- *
- * Guarantees ZERO double-booking:
- *   bookedRoomIds : a global HashSet of every assigned room ID (uniqueness).
- *   typeToRooms   : room type -> Set of room IDs assigned for that type.
- *
- * Allocation is atomic (logical): dequeue -> validate -> assign unique ID ->
- * add to Set -> decrement inventory, all in one step.
+ * USE CASE 4 + 6 — Reservation Confirmation, Allocation & Cancellation.
  */
 public class BookingService {
 
@@ -24,10 +17,17 @@ public class BookingService {
 
     private final Set<String> bookedRoomIds = new HashSet<>();
     private final Map<String, Set<String>> typeToRooms = new HashMap<>();
+    private final Map<String, Reservation> confirmedById = new HashMap<>();
+    private ReportingService reporting;   // UC6 (optional)
 
     public BookingService(RoomInventory inventory, BookingQueueService queue) {
         this.inventory = inventory;
         this.queue = queue;
+    }
+
+    /** UC6: attach a reporting service so confirmed bookings are recorded to history. */
+    public void setReportingService(ReportingService reporting) {
+        this.reporting = reporting;
     }
 
     /** Process the next request in the queue and try to confirm it. */
@@ -52,6 +52,8 @@ public class BookingService {
         r.setRoomId(roomId);
         r.setRoomCost(inventory.getPrice(type) * r.getNights());
         r.setStatus("CONFIRMED");
+        confirmedById.put(r.getReservationId(), r);
+        if (reporting != null) reporting.record(r);   // UC6: persist to history
 
         System.out.printf("CONFIRMED-> %s (%s): room %s, Rs.%.2f%n",
                 r.getReservationId(), r.getGuestName(), roomId, r.getRoomCost());
@@ -63,6 +65,23 @@ public class BookingService {
         while (!queue.isEmpty()) {
             processNext();
         }
+    }
+
+    /** UC6: cancel a confirmed booking — frees the room ID and restores inventory. */
+    public boolean cancel(String reservationId) {
+        Reservation r = confirmedById.get(reservationId);
+        if (r == null || !"CONFIRMED".equals(r.getStatus())) {
+            System.out.printf("Cannot cancel %s (not an active booking)%n", reservationId);
+            return false;
+        }
+        String type = r.getRoomType();
+        bookedRoomIds.remove(r.getRoomId());
+        typeToRooms.getOrDefault(type, new HashSet<>()).remove(r.getRoomId());
+        inventory.incrementCount(type);          // room is available again
+        r.setStatus("CANCELLED");
+        System.out.printf("CANCELLED-> %s: room %s released back to inventory%n",
+                reservationId, r.getRoomId());
+        return true;
     }
 
     /** Find the lowest-numbered free room ID for the type (e.g. SUITE-001). */
