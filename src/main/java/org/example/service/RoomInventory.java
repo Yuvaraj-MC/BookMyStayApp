@@ -7,11 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * USE CASE 1 + 2 — Room Inventory (now amenity-aware).
- *
- *   roomCounts    : room type -> available count
- *   roomPrices    : room type -> price per night
- *   roomAmenities : room type -> list of amenities  (added in UC2)
+ * USE CASE 1 + 2 + 4 — Room Inventory.
  */
 public class RoomInventory {
 
@@ -19,12 +15,10 @@ public class RoomInventory {
     private final Map<String, Double> roomPrices = new HashMap<>();
     private final Map<String, List<String>> roomAmenities = new HashMap<>();
 
-    /** UC1 overload — no amenities. */
     public void addRoomType(String type, int count, double pricePerNight) {
         addRoomType(type, count, pricePerNight, new ArrayList<>());
     }
 
-    /** UC2 overload — with amenities. */
     public void addRoomType(String type, int count, double pricePerNight, List<String> amenities) {
         if (type == null || type.isBlank()) {
             throw new IllegalArgumentException("Room type cannot be empty");
@@ -47,6 +41,14 @@ public class RoomInventory {
         requireType(type);
         if (newPrice < 0) throw new IllegalArgumentException("Price cannot be negative");
         roomPrices.put(type, newPrice);
+    }
+
+    /** Atomically reduce the available count by one when a room is allocated (UC4). */
+    public synchronized boolean decrementCount(String type) {
+        int current = getAvailableCount(type);
+        if (current <= 0) return false;
+        roomCounts.put(type, current - 1);
+        return true;
     }
 
     public int getAvailableCount(String type) {
