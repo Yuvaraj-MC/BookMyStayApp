@@ -1,7 +1,7 @@
 package org.example.service;
 
 import org.example.model.Reservation;
-import org.example.model.Service;
+import org.example.Model.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
